@@ -73,6 +73,15 @@ async def process_inline_menu(callback_query):
 async def handle(request):
     return web.Response(text="Бот работает!")
 
+async def keep_alive():
+    while True:
+        try:
+            await bot.get_me()
+            print("Бот активен, соединение поддерживается")
+        except Exception as e:
+            print(f"Ошибка поддержания соединения: {e}")
+        await asyncio.sleep(600)
+
 async def start_server():
     app = web.Application()
     app.router.add_get("/", handle)
@@ -85,6 +94,7 @@ async def start_server():
 async def main():
     print("Бот запущен...")
     loop = asyncio.get_event_loop()
+    loop.create_task(keep_alive())
     loop.create_task(start_server())  # Запуск заглушки для Render
     await dp.start_polling(bot)
 
