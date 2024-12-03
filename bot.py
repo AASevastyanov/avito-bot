@@ -16,11 +16,11 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
 # --- Reply-клавиатура ---
-reply_kb = ReplyKeyboardMarkup(resize_keyboard=True)
-reply_kb.add(
-    KeyboardButton(text="1"),
-    KeyboardButton(text="2"),
-    KeyboardButton(text="3")
+reply_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="1"), KeyboardButton(text="2"), KeyboardButton(text="3")]
+    ],
+    resize_keyboard=True
 )
 
 # --- Inline-клавиатура ---
