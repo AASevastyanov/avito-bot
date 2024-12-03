@@ -1,7 +1,9 @@
+import os
+import asyncio
+from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from aiogram.filters import Command
-import asyncio
 
 # Ваш токен от BotFather
 API_TOKEN = '7550524826:AAHUiJoSnaJIgK74Ca2wDmXwDIaS_86PWWs'
@@ -48,11 +50,25 @@ async def handle_pickup(message: Message):
 async def handle_unknown(message: Message):
     await message.answer("Я пока не знаю, как ответить на это. Напишите подробнее!")
 
+# Заглушка для порта, чтобы Render не выдавал ошибку
+async def handle(request):
+    return web.Response(text="Бот работает!")
+
+async def start_server():
+    app = web.Application()
+    app.router.add_get("/", handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8080)))
+    await site.start()
+
 # Основная функция запуска бота
 async def main():
     print("Бот запущен...")
+    loop = asyncio.get_event_loop()
+    loop.create_task(start_server())  # Запуск заглушки для Render
     await dp.start_polling(bot)
 
 # Запуск бота
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main())rm 
