@@ -24,11 +24,14 @@ reply_kb = ReplyKeyboardMarkup(
 )
 
 # --- Inline-клавиатура ---
-inline_kb = InlineKeyboardMarkup(row_width=3)
-inline_kb.add(
-    InlineKeyboardButton(text="1", callback_data="button_1"),
-    InlineKeyboardButton(text="2", callback_data="button_2"),
-    InlineKeyboardButton(text="3", callback_data="button_3")
+inline_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text="1", callback_data="button_1"),
+            InlineKeyboardButton(text="2", callback_data="button_2"),
+            InlineKeyboardButton(text="3", callback_data="button_3")
+        ]
+    ]
 )
 
 # --- Обработчики команд ---
