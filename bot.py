@@ -8,12 +8,16 @@ from aiogram.filters import Command, CommandObject
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
+from dotenv import load_dotenv
 
+load_dotenv()
 # Ваш токен от BotFather
-API_TOKEN = '7550524826:AAHUiJoSnaJIgK74Ca2wDmXwDIaS_86PWWs'
+API_TOKEN = os.getenv('API_TOKEN')
 
 # ID администратора, куда будут отправляться запросы
-ADMIN_CHAT_ID = 623455049
+ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
+
+DEBUG = os.getenv('DEBUG', 'False')
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
