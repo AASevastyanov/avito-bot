@@ -11,8 +11,9 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 
 load_dotenv()
-# Ваш токен от BotFatherdddd
+# Ваш токен от BotFather
 API_TOKEN = os.getenv('API_TOKEN')
+print(API_TOKEN)
 
 # ID администратора, куда будут отправляться запросы
 ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
@@ -151,17 +152,8 @@ sets_data = {
 }
 
 
-# Пример вставки изображения:
-# Вы можете отправлять изображения отдельно:
-# await bot.send_photo(chat_id=message.chat.id, photo="URL_КАРТИНКИ")
-# Или в приветственном сообщении:
-# await message.answer_photo(photo="URL_КАРТИНКИ", caption="Текст")
-
 @dp.message(Command("start"))
 async def start_command(message: Message):
-    # Пример использования эмодзи и изображения:
-    # Укажите свою картинку (по желанию) для создания атмосферы.
-    # await message.answer_photo(photo="https://example.com/image.jpg", caption="Наша праздничная атмосфера!")
     await message.answer(
         "🎄 Приветствую и с наступающими праздниками! Здесь вы можете:\n"
         "- Узнать подробнее о наших новогодних наборах\n"
@@ -216,11 +208,10 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             reply_markup=main_menu_kb
         )
 
-
     elif data in ["set_1", "set_2", "set_3"]:
         await state.update_data(chosen_set=data)
         set_info = sets_data[data]
-        # Удаляем текущее сообщение
+        # Удаляем текущее сообщение (текстовое)
         await callback.message.delete()
         # Отправляем новое сообщение с фото и описанием
         photo = FSInputFile(set_info['image_path'])
@@ -230,7 +221,6 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             caption=set_info['description'],
             reply_markup=set_detail_kb()
         )
-
 
     elif data == "back_to_sets":
         await callback.message.delete()
@@ -249,12 +239,17 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             return
         set_info = sets_data[chosen_set_key]
 
-        await callback.message.edit_text(
-            "Отлично! Уже можно чувствовать нотки Нового года в воздухе🎄!\n\n"
-            "Чтобы оформить предзаказ, нужно будет оплатить 50% от стоимости.\n\n"
-            f"Вы выбрали набор «{set_info['name']}» стоимостью {set_info['price']} руб.\n\n"
-            "После оплаты напишите ваше имя и дату, к которой вы будете готовы забрать этот набор.\n\n"
-            "Готовы оформить заказ🎁?",
+        # Удаляем фото-сообщение перед показом следующего шага
+        await callback.message.delete()
+        await bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=(
+                "Отлично! Уже можно чувствовать нотки Нового года в воздухе🎄!\n\n"
+                "Чтобы оформить предзаказ, нужно будет оплатить 50% от стоимости.\n\n"
+                f"Вы выбрали набор «{set_info['name']}» стоимостью {set_info['price']} руб.\n\n"
+                "После оплаты напишите ваше имя и дату, к которой вы будете готовы забрать этот набор.\n\n"
+                "Готовы оформить заказ🎁?"
+            ),
             reply_markup=order_confirm_kb
         )
 
@@ -264,8 +259,12 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
         chosen_set = user_data.get("chosen_set", None)
         if chosen_set:
             set_info = sets_data[chosen_set]
-            await callback.message.edit_text(
-                text=f"{set_info['description']}",
+            await callback.message.delete()
+            photo = FSInputFile(set_info['image_path'])
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=photo,
+                caption=set_info['description'],
                 reply_markup=set_detail_kb()
             )
         else:
@@ -280,10 +279,15 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             return
         set_info = sets_data[chosen_set_key]
 
-        await callback.message.edit_text(
-            f"Ура! Вы выбрали набор «{set_info['name']}» за {set_info['price']} руб.\n\n"
-            "Теперь, пожалуйста, напишите свое имя и дату, к которой вы будете готовы забрать этот набор🔔\n\n"
-            "После этого я передам информацию нашему помощнику, и он свяжется с вами!\n\n",
+        # Удаляем текущее (текстовое) сообщение и отправляем новое
+        await callback.message.delete()
+        await bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=(
+                f"Ура! Вы выбрали набор «{set_info['name']}» за {set_info['price']} руб.\n\n"
+                "Теперь, пожалуйста, напишите свое имя и дату, к которой вы будете готовы забрать этот набор🔔\n\n"
+                "После этого я передам информацию нашему помощнику, и он свяжется с вами!\n\n"
+            ),
             reply_markup=after_order_main_menu_kb
         )
         await state.set_state(OrderStates.waiting_for_order_info)
@@ -333,13 +337,11 @@ async def handle_user_question(message: Message, state: FSMContext):
     await state.clear()
 
 
-# Администратор может отвечать на вопросы командой /answer USER_ID Текст ответа
 @dp.message(Command("answer"))
 async def admin_answer(message: Message, command: CommandObject):
-    if message.from_user.id != ADMIN_CHAT_ID:
+    if str(message.from_user.id) != str(ADMIN_CHAT_ID):
         return  # Только админ может использовать эту команду
 
-    # Формат команды: /answer user_id ответ...
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
         await message.answer("Неверный формат команды. Используйте /answer USER_ID Текст ответа")
@@ -354,7 +356,6 @@ async def admin_answer(message: Message, command: CommandObject):
         await message.answer("User ID должен быть числом.")
         return
 
-    # Отправляем ответ пользователю
     await bot.send_message(chat_id=user_id_int, text=f"Ответ от помощника:\n\n{answer_text}")
     await message.answer("Ответ отправлен пользователю.")
 
