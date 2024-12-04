@@ -11,7 +11,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 
 load_dotenv()
-# Ваш токен от BotFather
+# Ваш токен от BotFatherdddd
 API_TOKEN = os.getenv('API_TOKEN')
 
 # ID администратора, куда будут отправляться запросы
