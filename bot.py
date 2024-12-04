@@ -2,8 +2,12 @@ import os
 import asyncio
 from aiohttp import web
 from aiogram import Bot, Dispatcher
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
-from aiogram.filters import Command
+from aiogram.types import (Message, InlineKeyboardMarkup, InlineKeyboardButton,
+                           CallbackQuery, FSInputFile)
+from aiogram.filters import Command, CommandObject
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.memory import MemoryStorage
 
 # Ваш токен от BotFather
 API_TOKEN = '7550524826:AAHUiJoSnaJIgK74Ca2wDmXwDIaS_86PWWs'
@@ -11,65 +15,347 @@ API_TOKEN = '7550524826:AAHUiJoSnaJIgK74Ca2wDmXwDIaS_86PWWs'
 # ID администратора, куда будут отправляться запросы
 ADMIN_CHAT_ID = 623455049
 
-# Создание экземпляра бота и диспетчера
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher()
+dp = Dispatcher(storage=MemoryStorage())
 
-# --- Reply-клавиатура ---
-reply_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="1"), KeyboardButton(text="2"), KeyboardButton(text="3")]
-    ],
-    resize_keyboard=True
-)
+# ---------- Состояния ----------
+class OrderStates(StatesGroup):
+    waiting_for_order_info = State()
 
-# --- Inline-клавиатура ---
-inline_kb = InlineKeyboardMarkup(
+class QuestionStates(StatesGroup):
+    waiting_for_question = State()
+
+# ---------- Клавиатуры ----------
+town_answers = InlineKeyboardMarkup(
     inline_keyboard=[
         [
-            InlineKeyboardButton(text="1", callback_data="button_1"),
-            InlineKeyboardButton(text="2", callback_data="button_2"),
-            InlineKeyboardButton(text="3", callback_data="button_3")
+            InlineKeyboardButton(text = 'Да!', callback_data='main_menu')
+        ],
+        [
+            InlineKeyboardButton(text='Другой город', callback_data='no_variant')
         ]
     ]
 )
 
-# --- Обработчики команд ---
+main_menu_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text="1. Подробнее о наборах 🏠", callback_data="details"),
+        ],
+        [
+            InlineKeyboardButton(text="2. Другой вопрос ❓", callback_data="other_question"),
+        ],
+        [
+            InlineKeyboardButton(text="3. Оформить предзаказ 🎁", callback_data="preorder")
+        ]
+    ]
+)
+
+sets_menu_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text="1. «Маленькое чудо ✨» (1000 руб)", callback_data="set_1"),
+        ],
+        [
+            InlineKeyboardButton(text="2. «Тёплый снег ❄️» (1500 руб)", callback_data="set_2"),
+        ],
+        [
+            InlineKeyboardButton(text="3. «Семейное волшебство 🪄» (2000 руб)", callback_data="set_3"),
+        ],
+        [
+            InlineKeyboardButton(text="Назад", callback_data="back_to_main")
+        ]
+    ]
+)
+
+def set_detail_kb():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Оформить заказ ✅", callback_data="order"),
+                InlineKeyboardButton(text="Назад", callback_data="back_to_sets")
+            ]
+        ]
+    )
+
+order_confirm_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Да!", callback_data="order_yes"),
+            InlineKeyboardButton(text="Я подумаю", callback_data="order_think_again")
+        ]
+    ]
+)
+
+other_question_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="Назад", callback_data="back_to_main")]
+    ]
+)
+
+after_order_main_menu_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="Главное меню", callback_data="back_to_main")]
+    ]
+)
+
+
+# ---------- Данные о наборах ----------
+sets_data = {
+    "set_1": {
+        "name": "Маленькое чудо",
+        "price": 1000,
+        "description": (
+            "Набор «Маленькое чудо ✨» (1000 руб):\n"
+            "• 🥮Имбирный человечек\n"
+            "• 🥮Имбирное печенье (ёлочка или новогодний шарик)\n"
+            "• 🍫2 шоколадки Kinder\n"
+            "• 🍭Леденец\n"
+            "• 🎄Новогодний шарик\n"
+            "• ❄️Искусственный снег, мишура и праздничная коробка"
+        ),
+        "image_path": "images/set_1.jpg"
+    },
+    "set_2": {
+        "name": "Тёплый снег",
+        "price": 1500,
+        "description": (
+            "«Тёплый снег ❄️» (1500 руб):\n"
+            "• 🏠Набор для создания пряничного домика\n"
+            "• 🥮Имбирный человечек\n"
+            "• 🍫4 шоколадки Kinder\n"
+            "• 🍭Зелёный леденец\n"
+            "• 🎄Красный новогодний шарик\n"
+            "• ❄️Искусственный снег, мишура и праздничная коробка"
+        ),
+        "image_path": "images/set_2.jpg"
+    },
+    "set_3": {
+        "name": "Семейное волшебство",
+        "price": 2000,
+        "description": (
+            "«Семейное волшебство 🪄» (2000 руб):\n"
+            "• 🏠Набор для создания пряничного домика\n"
+            "• 🥮3 имбирных человечка\n"
+            "• 🍫6 шоколадок Kinder\n"
+            "• 🍭2 зелёных леденца\n"
+            "• 🎄2 красных новогодних шарика\n"
+            "• ❄️Искусственный снег, мишура и праздничная коробка"
+        ),
+        "image_path": "images/set_3.jpg"
+    }
+}
+
+
+# Пример вставки изображения:
+# Вы можете отправлять изображения отдельно:
+# await bot.send_photo(chat_id=message.chat.id, photo="URL_КАРТИНКИ")
+# Или в приветственном сообщении:
+# await message.answer_photo(photo="URL_КАРТИНКИ", caption="Текст")
+
 @dp.message(Command("start"))
 async def start_command(message: Message):
+    # Пример использования эмодзи и изображения:
+    # Укажите свою картинку (по желанию) для создания атмосферы.
+    # await message.answer_photo(photo="https://example.com/image.jpg", caption="Наша праздничная атмосфера!")
     await message.answer(
-        "Привет! Вот что я могу:\n"
-        "- Выберите вариант из меню ниже.\n"
-        "- Либо используйте кнопки внутри сообщения:",
-        reply_markup=reply_kb  # Reply-клавиатура
-    )
-    await message.answer(
-        "Выберите из этого меню:",
-        reply_markup=inline_kb  # Inline-клавиатура
+        "🎄 Приветствую и с наступающими праздниками! Здесь вы можете:\n"
+        "- Узнать подробнее о наших новогодних наборах\n"
+        "- Задать любой вопрос\n"
+        "- Оформить предзаказ и порадовать себя или близких!\n\n"
+        "Начнем с главного, Вы проживаете в Казани?",
+        reply_markup=town_answers
     )
 
-# --- Обработка Reply-кнопок ---
-@dp.message(lambda message: message.text in ["1", "2", "3"])
-async def process_reply_menu(message: Message):
-    if message.text == "1":
-        await message.answer("Вы выбрали 1")
-    elif message.text == "2":
-        await message.answer("Вы выбрали 2")
-    elif message.text == "3":
-        await message.answer("Вы выбрали 3")
 
-# --- Обработка Inline-кнопок ---
 @dp.callback_query()
-async def process_inline_menu(callback_query):
-    if callback_query.data == "button_1":
-        await callback_query.message.answer("Вы нажали кнопку 1")
-    elif callback_query.data == "button_2":
-        await callback_query.message.answer("Вы нажали кнопку 2")
-    elif callback_query.data == "button_3":
-        await callback_query.message.answer("Вы нажали кнопку 3")
-    await callback_query.answer()  # Закрыть уведомление
+async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
+    data = callback.data
 
-# --- Заглушка для Render ---
+    # Главное меню
+    if data == "main_menu":
+        await callback.message.edit_text(
+            "Прекрасно! Итак, что вас интересует?",
+            reply_markup=main_menu_kb
+        )
+    elif data =='no_variant':
+        await callback.message.edit_text(
+            "К сожалению, наш санта пока летает только по Казани :)"
+        )
+
+    elif data == "details":
+        await callback.message.edit_text(
+            "Супер! О каком наборе вы бы хотели узнать подробнее?",
+            reply_markup=sets_menu_kb
+        )
+
+    elif data == "other_question":
+        # Пользователь хочет задать вопрос
+        await callback.message.edit_text(
+            "Отлично! Напишите ваш вопрос, и я передам его нашему помощнику🎅 "
+            "Он свяжется с вами в ближайшее время.\n\nКогда будете готовы задать вопрос, просто напишите его сообщением.",
+            reply_markup=other_question_kb
+        )
+        await state.set_state(QuestionStates.waiting_for_question)
+
+    elif data == "preorder":
+        # Оформить предзаказ – сначала покажем наборы
+        await callback.message.edit_text(
+            "Прекрасно🎁! Какой набор вы выбрали?",
+            reply_markup=sets_menu_kb
+        )
+
+    elif data == "back_to_main":
+        await state.clear()
+        await callback.message.edit_text(
+            "Что вы хотите выбрать?",
+            reply_markup=main_menu_kb
+        )
+
+
+    elif data in ["set_1", "set_2", "set_3"]:
+        await state.update_data(chosen_set=data)
+        set_info = sets_data[data]
+        # Удаляем текущее сообщение
+        await callback.message.delete()
+        # Отправляем новое сообщение с фото и описанием
+        photo = FSInputFile(set_info['image_path'])
+        await bot.send_photo(
+            chat_id=callback.message.chat.id,
+            photo=photo,
+            caption=set_info['description'],
+            reply_markup=set_detail_kb()
+        )
+
+
+    elif data == "back_to_sets":
+        await callback.message.delete()
+        await bot.send_message(
+            chat_id=callback.message.chat.id,
+            text="Супер! О каком наборе вы бы хотели узнать подробнее?",
+            reply_markup=sets_menu_kb
+        )
+
+    elif data == "order":
+        # Оформить заказ для выбранного набора
+        user_data = await state.get_data()
+        chosen_set_key = user_data.get("chosen_set")
+        if not chosen_set_key:
+            await callback.message.answer("Произошла ошибка, попробуйте ещё раз.")
+            return
+        set_info = sets_data[chosen_set_key]
+
+        await callback.message.edit_text(
+            "Отлично! Уже можно чувствовать нотки Нового года в воздухе🎄!\n\n"
+            "Чтобы оформить предзаказ, нужно будет оплатить 50% от стоимости.\n\n"
+            f"Вы выбрали набор «{set_info['name']}» стоимостью {set_info['price']} руб.\n\n"
+            "После оплаты напишите ваше имя и дату, к которой вы будете готовы забрать этот набор.\n\n"
+            "Готовы оформить заказ🎁?",
+            reply_markup=order_confirm_kb
+        )
+
+    elif data == "order_think_again":
+        # Вернуться к описанию набора
+        user_data = await state.get_data()
+        chosen_set = user_data.get("chosen_set", None)
+        if chosen_set:
+            set_info = sets_data[chosen_set]
+            await callback.message.edit_text(
+                text=f"{set_info['description']}",
+                reply_markup=set_detail_kb()
+            )
+        else:
+            await callback.message.answer("Произошла ошибка, попробуйте ещё раз.")
+
+    elif data == "order_yes":
+        # Переход в состояние ожидания ввода данных по заказу
+        user_data = await state.get_data()
+        chosen_set_key = user_data.get("chosen_set", None)
+        if chosen_set_key is None:
+            await callback.message.answer("Произошла ошибка, попробуйте ещё раз.")
+            return
+        set_info = sets_data[chosen_set_key]
+
+        await callback.message.edit_text(
+            f"Ура! Вы выбрали набор «{set_info['name']}» за {set_info['price']} руб.\n\n"
+            "Теперь, пожалуйста, напишите свое имя и дату, к которой вы будете готовы забрать этот набор🔔\n\n"
+            "После этого я передам информацию нашему помощнику, и он свяжется с вами!\n\n",
+            reply_markup=after_order_main_menu_kb
+        )
+        await state.set_state(OrderStates.waiting_for_order_info)
+
+
+@dp.message(OrderStates.waiting_for_order_info)
+async def handle_order_info(message: Message, state: FSMContext):
+    user_data = await state.get_data()
+    chosen_set_key = user_data.get("chosen_set", "неизвестный набор")
+    chosen_set = sets_data.get(chosen_set_key, {"name": "Неизвестно", "price": "неизвестна"})
+
+    user_text = message.text
+    username = message.from_user.username
+    user_id = message.from_user.id
+
+    admin_text = (
+        f"Новый предзаказ!\n\n"
+        f"Имя/Дата: {user_text}\n"
+        f"Набор: {chosen_set['name']} (Цена: {chosen_set['price']} руб)\n"
+        f"Username: @{username if username else 'нет юзернейма'}\n"
+        f"User ID: {user_id}\n"
+    )
+
+    await bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_text)
+    await message.answer("Отлично! Ваши данные отправлены нашему помощнику. Ожидайте ответа. 🎅")
+    await state.clear()
+
+
+@dp.message(QuestionStates.waiting_for_question)
+async def handle_user_question(message: Message, state: FSMContext):
+    # Пользователь задал вопрос
+    question_text = message.text
+    username = message.from_user.username
+    user_id = message.from_user.id
+
+    admin_text = (
+        f"Вам поступил новый вопрос!\n\n"
+        f"Текст вопроса: {question_text}\n"
+        f"Username: @{username if username else 'нет юзернейма'}\n"
+        f"User ID: {user_id}\n\n"
+        "Ответьте командой вида:\n"
+        "/answer USER_ID Ваш ответ"
+    )
+
+    await bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_text)
+    await message.answer("Ваш вопрос отправлен нашему помощнику! Он свяжется с вами в ближайшее время.")
+    await state.clear()
+
+
+# Администратор может отвечать на вопросы командой /answer USER_ID Текст ответа
+@dp.message(Command("answer"))
+async def admin_answer(message: Message, command: CommandObject):
+    if message.from_user.id != ADMIN_CHAT_ID:
+        return  # Только админ может использовать эту команду
+
+    # Формат команды: /answer user_id ответ...
+    args = message.text.split(maxsplit=2)
+    if len(args) < 3:
+        await message.answer("Неверный формат команды. Используйте /answer USER_ID Текст ответа")
+        return
+
+    user_id = args[1]
+    answer_text = args[2]
+
+    try:
+        user_id_int = int(user_id)
+    except ValueError:
+        await message.answer("User ID должен быть числом.")
+        return
+
+    # Отправляем ответ пользователю
+    await bot.send_message(chat_id=user_id_int, text=f"Ответ от помощника:\n\n{answer_text}")
+    await message.answer("Ответ отправлен пользователю.")
+
+
+# ----------- Заглушки для Render -----------
 async def handle(request):
     return web.Response(text="Бот работает!")
 
@@ -90,7 +376,6 @@ async def start_server():
     site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8080)))
     await site.start()
 
-# --- Основная функция запуска ---
 async def main():
     print("Бот запущен...")
     loop = asyncio.get_event_loop()
