@@ -11,13 +11,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 
 load_dotenv()
-# Ваш токен от BotFather
 API_TOKEN = os.getenv('API_TOKEN')
-print(API_TOKEN)
-
-# ID администратора, куда будут отправляться запросы
 ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
-
 DEBUG = os.getenv('DEBUG', 'False')
 
 bot = Bot(token=API_TOKEN)
@@ -26,6 +21,17 @@ dp = Dispatcher(storage=MemoryStorage())
 # ---------- Состояния ----------
 class OrderStates(StatesGroup):
     waiting_for_order_info = State()
+    # Этапы выбора для разных наборов
+    # Для "Маленькое чудо" (один выбор)
+    waiting_for_filling_choice_little = State()
+
+    # Для "Тёплый снег" (один выбор)
+    waiting_for_filling_choice_snow = State()
+
+    # Для "Семейное волшебство" (два выбора)
+    waiting_for_filling_choice_magic_1 = State()  # первый выбор
+    waiting_for_filling_choice_magic_2 = State()  # второй выбор
+
 
 class QuestionStates(StatesGroup):
     waiting_for_question = State()
@@ -33,62 +39,41 @@ class QuestionStates(StatesGroup):
 # ---------- Клавиатуры ----------
 town_answers = InlineKeyboardMarkup(
     inline_keyboard=[
-        [
-            InlineKeyboardButton(text = 'Да!', callback_data='main_menu')
-        ],
-        [
-            InlineKeyboardButton(text='Другой город', callback_data='no_variant')
-        ]
+        [InlineKeyboardButton(text='Да!', callback_data='main_menu')],
+        [InlineKeyboardButton(text='Другой город', callback_data='no_variant')]
     ]
 )
 
 main_menu_kb = InlineKeyboardMarkup(
     inline_keyboard=[
-        [
-            InlineKeyboardButton(text="1. Подробнее о наборах 🏠", callback_data="details"),
-        ],
-        [
-            InlineKeyboardButton(text="2. Другой вопрос ❓", callback_data="other_question"),
-        ],
-        [
-            InlineKeyboardButton(text="3. Оформить предзаказ 🎁", callback_data="preorder")
-        ]
+        [InlineKeyboardButton(text="1. Подробнее о наборах 🏠", callback_data="details")],
+        [InlineKeyboardButton(text="2. Другой вопрос ❓", callback_data="other_question")],
+        [InlineKeyboardButton(text="3. Акции ⭐", callback_data="actions")],
+        [InlineKeyboardButton(text="4. Оформить предзаказ 🎁", callback_data="preorder")]
     ]
 )
 
 sets_menu_kb = InlineKeyboardMarkup(
     inline_keyboard=[
-        [
-            InlineKeyboardButton(text="1. «Маленькое чудо ✨» (1000 руб)", callback_data="set_1"),
-        ],
-        [
-            InlineKeyboardButton(text="2. «Тёплый снег ❄️» (1500 руб)", callback_data="set_2"),
-        ],
-        [
-            InlineKeyboardButton(text="3. «Семейное волшебство 🪄» (2000 руб)", callback_data="set_3"),
-        ],
-        [
-            InlineKeyboardButton(text="Назад", callback_data="back_to_main")
-        ]
+        [InlineKeyboardButton(text="1. «Маленькое чудо ✨» (1000 руб)", callback_data="set_1")],
+        [InlineKeyboardButton(text="2. «Тёплый снег ❄️» (1500 руб)", callback_data="set_2")],
+        [InlineKeyboardButton(text="3. «Семейное волшебство 🪄» (2000 руб)", callback_data="set_3")],
+        [InlineKeyboardButton(text="Назад", callback_data="back_to_main")]
     ]
 )
 
 def set_detail_kb():
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(text="Оформить заказ ✅", callback_data="order"),
-                InlineKeyboardButton(text="Назад", callback_data="back_to_sets")
-            ]
+            [InlineKeyboardButton(text="Оформить заказ ✅", callback_data="order"),
+             InlineKeyboardButton(text="Назад", callback_data="back_to_sets")]
         ]
     )
 
 order_confirm_kb = InlineKeyboardMarkup(
     inline_keyboard=[
-        [
-            InlineKeyboardButton(text="Да!", callback_data="order_yes"),
-            InlineKeyboardButton(text="Я подумаю", callback_data="order_think_again")
-        ]
+        [InlineKeyboardButton(text="Да!", callback_data="order_yes"),
+         InlineKeyboardButton(text="Я подумаю", callback_data="order_think_again")]
     ]
 )
 
@@ -104,6 +89,59 @@ after_order_main_menu_kb = InlineKeyboardMarkup(
     ]
 )
 
+actions_menu_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="Бонус за предзаказ 🎁", callback_data="action_preorder_bonus")],
+        [InlineKeyboardButton(text="Подарочная открытка ✨", callback_data="action_card")],
+        [InlineKeyboardButton(text="Время-ограниченная акция ⏰", callback_data="action_limited")],
+        [InlineKeyboardButton(text="Назад", callback_data="back_to_main")]
+    ]
+)
+
+def action_back_kb():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Назад", callback_data="actions")]
+        ]
+    )
+
+# Клавиатуры для выбора наполнения
+# Маленькое чудо
+little_choice_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="Елочка 🌲", callback_data="little_елочка")],
+        [InlineKeyboardButton(text="Новогодний шарик 🎄", callback_data="little_шарик")],
+        [InlineKeyboardButton(text="Назад", callback_data="little_back")]
+    ]
+)
+
+# Тёплый снег
+snow_choice_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="Example1", callback_data="snow_ex1")],
+        [InlineKeyboardButton(text="Example2", callback_data="snow_ex2")],
+        [InlineKeyboardButton(text="Назад", callback_data="snow_back")]
+    ]
+)
+
+# Семейное волшебство - первый выбор
+magic_first_choice_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="Example1", callback_data="magic1_ex1")],
+        [InlineKeyboardButton(text="Example2", callback_data="magic1_ex2")],
+        [InlineKeyboardButton(text="Назад", callback_data="magic1_back")]
+    ]
+)
+
+# Семейное волшебство - второй выбор
+magic_second_choice_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="Example1", callback_data="magic2_ex1")],
+        [InlineKeyboardButton(text="Example2", callback_data="magic2_ex2")],
+        [InlineKeyboardButton(text="Example3", callback_data="magic2_ex3")],
+        [InlineKeyboardButton(text="Назад", callback_data="magic2_back")]
+    ]
+)
 
 # ---------- Данные о наборах ----------
 sets_data = {
@@ -155,26 +193,26 @@ sets_data = {
 @dp.message(Command("start"))
 async def start_command(message: Message):
     await message.answer(
-        "🎄 Приветствую и с наступающими праздниками! Здесь вы можете:\n"
+        "🎄 Приветствую! Здесь вы можете:\n"
         "- Узнать подробнее о наших новогодних наборах\n"
         "- Задать любой вопрос\n"
+        "- Узнать об актуальных акциях\n"
         "- Оформить предзаказ и порадовать себя или близких!\n\n"
         "Начнем с главного, Вы проживаете в Казани?",
         reply_markup=town_answers
     )
 
-
 @dp.callback_query()
 async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
     data = callback.data
 
-    # Главное меню
     if data == "main_menu":
         await callback.message.edit_text(
             "Прекрасно! Итак, что вас интересует?",
             reply_markup=main_menu_kb
         )
-    elif data =='no_variant':
+
+    elif data == 'no_variant':
         await callback.message.edit_text(
             "К сожалению, наш санта пока летает только по Казани :)"
         )
@@ -186,7 +224,6 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
         )
 
     elif data == "other_question":
-        # Пользователь хочет задать вопрос
         await callback.message.edit_text(
             "Отлично! Напишите ваш вопрос, и я передам его нашему помощнику🎅 "
             "Он свяжется с вами в ближайшее время.\n\nКогда будете готовы задать вопрос, просто напишите его сообщением.",
@@ -194,8 +231,31 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
         )
         await state.set_state(QuestionStates.waiting_for_question)
 
+    elif data == "actions":
+        await callback.message.edit_text(
+            "Здесь вы сможете найти и узнать подробнее о наших актуальных акциях⭐",
+            reply_markup=actions_menu_kb
+        )
+
+    elif data == "action_preorder_bonus":
+        await callback.message.edit_text(
+            "Бонус за предзаказ 🎁:\n\nЗакажите свой набор до 15 декабря и получите дополнительный имбирный человечек в подарок!",
+            reply_markup=action_back_kb()
+        )
+
+    elif data == "action_card":
+        await callback.message.edit_text(
+            "Подарочная открытка ✨:\n\nДо 15 декабря мы можем приложить именную открытку с вашим поздравлением — бесплатно!",
+            reply_markup=action_back_kb()
+        )
+
+    elif data == "action_limited":
+        await callback.message.edit_text(
+            "Время-ограниченная акция ⏰:\n\nДо 15 декабря — дополнительная шоколадка Kinder без доплаты!",
+            reply_markup=action_back_kb()
+        )
+
     elif data == "preorder":
-        # Оформить предзаказ – сначала покажем наборы
         await callback.message.edit_text(
             "Прекрасно🎁! Какой набор вы выбрали?",
             reply_markup=sets_menu_kb
@@ -211,9 +271,7 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
     elif data in ["set_1", "set_2", "set_3"]:
         await state.update_data(chosen_set=data)
         set_info = sets_data[data]
-        # Удаляем текущее сообщение (текстовое)
         await callback.message.delete()
-        # Отправляем новое сообщение с фото и описанием
         photo = FSInputFile(set_info['image_path'])
         await bot.send_photo(
             chat_id=callback.message.chat.id,
@@ -231,31 +289,51 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
         )
 
     elif data == "order":
-        # Оформить заказ для выбранного набора
         user_data = await state.get_data()
         chosen_set_key = user_data.get("chosen_set")
         if not chosen_set_key:
             await callback.message.answer("Произошла ошибка, попробуйте ещё раз.")
             return
-        set_info = sets_data[chosen_set_key]
 
-        # Удаляем фото-сообщение перед показом следующего шага
         await callback.message.delete()
-        await bot.send_message(
+        # Показываем две картинки
+        await bot.send_photo(
             chat_id=callback.message.chat.id,
-            text=(
-                "Отлично! Уже можно чувствовать нотки Нового года в воздухе🎄!\n\n"
-                f"Вы выбрали набор «{set_info['name']}» стоимостью {set_info['price']} руб.\n\n"
-                "Итак, способы бронирования:\n\n"
-                "1. Оплата полностью при получении, если вы заберете набор самовывозом в течении 2-ух дней после заказа(с адреса Николая ершова 62в)\n\n"
-                "2. Оформить предзаказ, для этого нужно будет оплатить 50% от стоимости. Для этого с Вами свяжется наш тайный санта!\n\n"
-                "Готовы оформить заказ🎁?"
-            ),
-            reply_markup=order_confirm_kb
+            photo=FSInputFile("images/1.jpg")  # Замените путь
+        )
+        await bot.send_photo(
+            chat_id=callback.message.chat.id,
+            photo=FSInputFile("images/2.jpg")  # Замените путь
         )
 
+        if chosen_set_key == "set_1":
+            # Маленькое чудо (один выбор)
+            await bot.send_message(
+                chat_id=callback.message.chat.id,
+                text="Какое наполнение вы желаете?",
+                reply_markup=little_choice_kb
+            )
+            await state.set_state(OrderStates.waiting_for_filling_choice_little)
+
+        elif chosen_set_key == "set_2":
+            # Тёплый снег (один выбор)
+            await bot.send_message(
+                chat_id=callback.message.chat.id,
+                text="Какое наполнение вы желаете?",
+                reply_markup=snow_choice_kb
+            )
+            await state.set_state(OrderStates.waiting_for_filling_choice_snow)
+
+        elif chosen_set_key == "set_3":
+            # Семейное волшебство (два этапа выбора)
+            await bot.send_message(
+                chat_id=callback.message.chat.id,
+                text="Какое наполнение вы желаете? (первый выбор)",
+                reply_markup=magic_first_choice_kb
+            )
+            await state.set_state(OrderStates.waiting_for_filling_choice_magic_1)
+
     elif data == "order_think_again":
-        # Вернуться к описанию набора
         user_data = await state.get_data()
         chosen_set = user_data.get("chosen_set", None)
         if chosen_set:
@@ -271,8 +349,113 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
         else:
             await callback.message.answer("Произошла ошибка, попробуйте ещё раз.")
 
+
+    # Обработка выбора для "Маленькое чудо"
+    elif data in ["little_елочка", "little_шарик", "little_back"]:
+        if data == "little_back":
+            # Возврат к выбору набора
+            await state.update_data(filling=None)
+            await callback.message.delete()
+            # Показываем снова описание набора
+            user_data = await state.get_data()
+            chosen_set_key = user_data.get("chosen_set")
+            set_info = sets_data[chosen_set_key]
+            photo = FSInputFile(set_info['image_path'])
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=photo,
+                caption=set_info['description'],
+                reply_markup=set_detail_kb()
+            )
+            await state.clear_state(OrderStates.waiting_for_filling_choice_little)
+        else:
+            # Выбран один из вариантов
+            await state.update_data(filling=data.replace("little_", ""))
+
+            await send_booking_options(callback, state)
+
+    # Обработка выбора для "Тёплый снег"
+    elif data in ["snow_ex1", "snow_ex2", "snow_back"]:
+        if data == "snow_back":
+            # Возврат к выбору набора
+            await state.update_data(snow_choice=None)
+            await callback.message.delete()
+            user_data = await state.get_data()
+            chosen_set_key = user_data.get("chosen_set")
+            set_info = sets_data[chosen_set_key]
+            photo = FSInputFile(set_info['image_path'])
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=photo,
+                caption=set_info['description'],
+                reply_markup=set_detail_kb()
+            )
+            await state.clear_state(OrderStates.waiting_for_filling_choice_snow)
+        else:
+            await state.update_data(snow_choice=data.replace("snow_", ""))
+            await send_booking_options(callback, state)
+
+    # Обработка выбора для "Семейное волшебство" - первый выбор
+    elif data in ["magic1_ex1", "magic1_ex2", "magic1_back"]:
+        if data == "magic1_back":
+            # Назад к описанию набора
+            await state.update_data(magic_choice_1=None)
+            await callback.message.delete()
+            user_data = await state.get_data()
+            chosen_set_key = user_data.get("chosen_set")
+            set_info = sets_data[chosen_set_key]
+            photo = FSInputFile(set_info['image_path'])
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=photo,
+                caption=set_info['description'],
+                reply_markup=set_detail_kb()
+            )
+            await state.clear_state(OrderStates.waiting_for_filling_choice_magic_1)
+        else:
+            await state.update_data(magic_choice_1=data.replace("magic1_", ""))
+            # Переход ко второму этапу выбора
+            await callback.message.delete()
+            # Снова показываем две картинки
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=FSInputFile("images/3.jpg")  # Замените путь
+            )
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=FSInputFile("images/4.jpg")  # Замените путь
+            )
+            await bot.send_message(
+                chat_id=callback.message.chat.id,
+                text="Какой второй вариант вы желаете?",
+                reply_markup=magic_second_choice_kb
+            )
+            await state.set_state(OrderStates.waiting_for_filling_choice_magic_2)
+
+    # Обработка выбора для "Семейное волшебство" - второй выбор
+    elif data in ["magic2_ex1", "magic2_ex2", "magic2_ex3", "magic2_back"]:
+        if data == "magic2_back":
+            # Назад к первому выбору
+            await callback.message.delete()
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=FSInputFile("images/5.jpg")
+            )
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=FSInputFile("images/3.jpg")
+            )
+            await bot.send_message(
+                chat_id=callback.message.chat.id,
+                text="Какое наполнение вы желаете? (первый выбор)",
+                reply_markup=magic_first_choice_kb
+            )
+            await state.set_state(OrderStates.waiting_for_filling_choice_magic_1)
+        else:
+            await state.update_data(magic_choice_2=data.replace("magic2_", ""))
+            await send_booking_options(callback, state)
+
     elif data == "order_yes":
-        # Переход в состояние ожидания ввода данных по заказу
         user_data = await state.get_data()
         chosen_set_key = user_data.get("chosen_set", None)
         if chosen_set_key is None:
@@ -280,12 +463,11 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             return
         set_info = sets_data[chosen_set_key]
 
-        # Удаляем текущее (текстовое) сообщение и отправляем новое
         await callback.message.delete()
         await bot.send_message(
             chat_id=callback.message.chat.id,
             text=(
-                f"Замечательно! Напомним Ваш набор «{set_info['name']}» за {set_info['price']} руб.\n\n"
+                f"Замечательно! Ваш набор «{set_info['name']}» за {set_info['price']} руб.\n\n"
                 "Теперь, пожалуйста, напишите свое имя и дату, к которой вы будете готовы забрать этот набор🔔(в одном сообщении)\n\n"
                 "После этого я передам информацию нашему помощнику, и он свяжется с вами!\n\n"
             ),
@@ -294,11 +476,42 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
         await state.set_state(OrderStates.waiting_for_order_info)
 
 
+async def send_booking_options(callback: CallbackQuery, state: FSMContext):
+    # После завершения выбора для любого набора переходим к стандартным условиям заказа
+    user_data = await state.get_data()
+    chosen_set_key = user_data.get("chosen_set")
+    set_info = sets_data[chosen_set_key]
+
+    await callback.message.delete()
+    await bot.send_message(
+        chat_id=callback.message.chat.id,
+        text=(
+            "Отлично! Уже можно чувствовать нотки Нового года в воздухе🎄!\n\n"
+            f"Вы выбрали набор «{set_info['name']}» стоимостью {set_info['price']} руб.\n\n"
+            "Итак, способы бронирования:\n\n"
+            "1. Оплата полностью при получении, если вы заберете набор самовывозом в течении 2-ух дней после заказа(с адреса Николая ершова 62в)\n\n"
+            "2. Оформить предзаказ, для этого нужно будет оплатить 50% от стоимости. Для этого с Вами свяжется наш тайный санта!\n\n"
+            "Готовы оформить заказ🎁?"
+        ),
+        reply_markup=order_confirm_kb
+    )
+
 @dp.message(OrderStates.waiting_for_order_info)
 async def handle_order_info(message: Message, state: FSMContext):
     user_data = await state.get_data()
     chosen_set_key = user_data.get("chosen_set", "неизвестный набор")
     chosen_set = sets_data.get(chosen_set_key, {"name": "Неизвестно", "price": "неизвестна"})
+
+    # Собираем все выборы
+    filling_info = ""
+    if chosen_set_key == "set_1":
+        filling_info = user_data.get("filling", "не выбрано")
+    elif chosen_set_key == "set_2":
+        filling_info = user_data.get("snow_choice", "не выбрано")
+    elif chosen_set_key == "set_3":
+        magic_choice_1 = user_data.get("magic_choice_1", "не выбрано")
+        magic_choice_2 = user_data.get("magic_choice_2", "не выбрано")
+        filling_info = f"Выбор 1: {magic_choice_1}, Выбор 2: {magic_choice_2}"
 
     user_text = message.text
     username = message.from_user.username
@@ -308,6 +521,7 @@ async def handle_order_info(message: Message, state: FSMContext):
         f"Новый предзаказ!\n\n"
         f"Имя/Дата: {user_text}\n"
         f"Набор: {chosen_set['name']} (Цена: {chosen_set['price']} руб)\n"
+        f"Выборы: {filling_info}\n"
         f"Username: @{username if username else 'нет юзернейма'}\n"
         f"User ID: {user_id}\n"
     )
@@ -319,7 +533,6 @@ async def handle_order_info(message: Message, state: FSMContext):
 
 @dp.message(QuestionStates.waiting_for_question)
 async def handle_user_question(message: Message, state: FSMContext):
-    # Пользователь задал вопрос
     question_text = message.text
     username = message.from_user.username
     user_id = message.from_user.id
@@ -336,7 +549,6 @@ async def handle_user_question(message: Message, state: FSMContext):
     await bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_text)
     await message.answer("Ваш вопрос отправлен нашему помощнику! Он свяжется с вами в ближайшее время.")
     await state.clear()
-
 
 @dp.message(Command("answer"))
 async def admin_answer(message: Message, command: CommandObject):
@@ -359,7 +571,6 @@ async def admin_answer(message: Message, command: CommandObject):
 
     await bot.send_message(chat_id=user_id_int, text=f"Ответ от помощника:\n\n{answer_text}")
     await message.answer("Ответ отправлен пользователю.")
-
 
 # ----------- Заглушки для Render -----------
 async def handle(request):
@@ -386,7 +597,7 @@ async def main():
     print("Бот запущен...")
     loop = asyncio.get_event_loop()
     loop.create_task(keep_alive())
-    loop.create_task(start_server())  # Запуск заглушки для Render
+    loop.create_task(start_server())
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
