@@ -104,7 +104,6 @@ after_order_main_menu_kb = InlineKeyboardMarkup(
 
 actions_menu_kb = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text="Бонус за предзаказ 🎁", callback_data="action_preorder_bonus")],
         [InlineKeyboardButton(text="Подарочная открытка ✨", callback_data="action_card")],
         [InlineKeyboardButton(text="Время-ограниченная акция ⏰", callback_data="action_limited")],
         [InlineKeyboardButton(text="Назад", callback_data="back_to_main")]
@@ -124,8 +123,8 @@ def action_back_kb():
 # Маленькое чудо
 little_choice_kb = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text="Елочка 🌲", callback_data="little_елочка")],
-        [InlineKeyboardButton(text="Новогодний шарик 🎄", callback_data="little_шарик")],
+        [InlineKeyboardButton(text="Елочка 🎄", callback_data="little_елочка")],
+        [InlineKeyboardButton(text="Новогодний шарик ❄️", callback_data="little_шарик")],
         [InlineKeyboardButton(text="Назад", callback_data="little_back")]
     ]
 )
@@ -133,8 +132,8 @@ little_choice_kb = InlineKeyboardMarkup(
 # Тёплый снег
 snow_choice_kb = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text="Example1", callback_data="snow_ex1")],
-        [InlineKeyboardButton(text="Example2", callback_data="snow_ex2")],
+        [InlineKeyboardButton(text="Обычный домик 🏡", callback_data="snow_ex1")],
+        [InlineKeyboardButton(text="Высокий домик 🏠 (+M&M's)", callback_data="snow_ex2")],
         [InlineKeyboardButton(text="Назад", callback_data="snow_back")]
     ]
 )
@@ -142,8 +141,8 @@ snow_choice_kb = InlineKeyboardMarkup(
 # Семейное волшебство - первый выбор
 magic_first_choice_kb = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text="Example1", callback_data="magic1_ex1")],
-        [InlineKeyboardButton(text="Example2", callback_data="magic1_ex2")],
+        [InlineKeyboardButton(text="Обычный домик 🏡", callback_data="magic1_ex1")],
+        [InlineKeyboardButton(text="Высокий домик 🏠 (+M&M's)", callback_data="magic1_ex2")],
         [InlineKeyboardButton(text="Назад", callback_data="magic1_back")]
     ]
 )
@@ -151,9 +150,9 @@ magic_first_choice_kb = InlineKeyboardMarkup(
 # Семейное волшебство - второй выбор
 magic_second_choice_kb = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text="Example1", callback_data="magic2_ex1")],
-        [InlineKeyboardButton(text="Example2", callback_data="magic2_ex2")],
-        [InlineKeyboardButton(text="Example3", callback_data="magic2_ex3")],
+        [InlineKeyboardButton(text="2 пряничных человечка", callback_data="magic2_ex1")],
+        [InlineKeyboardButton(text="Елочка 🎄", callback_data="magic2_ex2")],
+        [InlineKeyboardButton(text="Новогодний шарик ❄️", callback_data="magic2_ex3")],
         [InlineKeyboardButton(text="Назад", callback_data="magic2_back")]
     ]
 )
@@ -179,7 +178,7 @@ sets_data = {
         "price": 1500,
         "description": (
             "«Тёплый снег ❄️» (1500 руб):\n"
-            "• 🏠Набор для создания пряничного домика\n"
+            "• 🏠Набор для создания пряничного домика(на выбор)\n"
             "• 🥮Имбирный человечек\n"
             "• 🍫4 шоколадки Kinder\n"
             "• 🍭Зелёный леденец\n"
@@ -193,8 +192,9 @@ sets_data = {
         "price": 2000,
         "description": (
             "«Семейное волшебство 🪄» (2000 руб):\n"
-            "• 🏠Набор для создания пряничного домика\n"
-            "• 🥮3 имбирных человечка\n"
+            "• 🏠Набор для создания пряничного домика(на выбор)\n"
+            "• 🥮1 имбирный человечек\n"
+            "  На выбор(+2 человечка, ёлочка или новогодний шарик)\n"
             "• 🍫6 шоколадок Kinder\n"
             "• 🍭2 зелёных леденца\n"
             "• 🎄2 красных новогодних шарика\n"
@@ -255,21 +255,15 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
                 reply_markup=actions_menu_kb
             )
 
-        elif data == "action_preorder_bonus":
-            await callback.message.edit_text(
-                "Бонус за предзаказ 🎁:\n\nЗакажите свой набор до 15 декабря и получите дополнительный имбирный человечек в подарок!",
-                reply_markup=action_back_kb()
-            )
-
         elif data == "action_card":
             await callback.message.edit_text(
-                "Подарочная открытка ✨:\n\nДо 15 декабря мы можем приложить именную открытку с вашим поздравлением — бесплатно!",
+                "Подарочная открытка ✨:\n\nДля предзаказа до 15 декабря мы можем написать поздравление на коробке — бесплатно!",
                 reply_markup=action_back_kb()
             )
 
         elif data == "action_limited":
             await callback.message.edit_text(
-                "Время-ограниченная акция ⏰:\n\nДо 15 декабря — дополнительная шоколадка Kinder без доплаты!",
+                "Время-ограниченная акция ⏰:\n\nДля предзаказа до 15 декабря — 4 дополнительные шоколадки Kinder без доплаты!",
                 reply_markup=action_back_kb()
             )
 
@@ -350,7 +344,7 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
                     media_group = [
                         InputMediaPhoto(
                             media=FSInputFile("images/choice_tree.jpg"),
-                            caption="Какое наполнение вы желаете?"
+                            caption="Какую печеньку вы предпочитаете в вашем наборе?"
                         )
                     ]
                     sent_messages = await bot.send_media_group(
@@ -370,7 +364,7 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
                     media_group = [
                         InputMediaPhoto(media=FSInputFile("images/home_1.jpg")),
                         InputMediaPhoto(media=FSInputFile("images/home_2.jpg"),
-                                        caption="Какое наполнение вы желаете?")
+                                        caption="Какой домик вы предпочитаете в вашем наборе?")
                     ]
                     sent_messages = await bot.send_media_group(
                         chat_id=callback.message.chat.id,
@@ -389,7 +383,7 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
                     media_group = [
                         InputMediaPhoto(media=FSInputFile("images/home_1.jpg")),
                         InputMediaPhoto(media=FSInputFile("images/home_2.jpg"),
-                                        caption="Какое наполнение вы желаете? (первый выбор)")
+                                        caption="Какой домик вы предпочитаете в вашем наборе?")
                     ]
                     sent_messages = await bot.send_media_group(
                         chat_id=callback.message.chat.id,
@@ -561,7 +555,7 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
                     media_group = [
                         InputMediaPhoto(media=FSInputFile("images/choice_cookies.jpg")),
                         InputMediaPhoto(media=FSInputFile("images/choice_tree.jpg"),
-                                        caption="Какой второй вариант вы желаете?")
+                                        caption="Какую печеньку вы предпочитаете видеть в своем наборе?")
                     ]
                     sent_messages = await bot.send_media_group(
                         chat_id=callback.message.chat.id,
@@ -573,7 +567,7 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
                     # Отправляем кнопки второго выбора
                     await bot.send_message(
                         chat_id=callback.message.chat.id,
-                        text="Выберите второй вариант:",
+                        text="Выберите второе наполнение:",
                         reply_markup=magic_second_choice_kb
                     )
                     await state.set_state(OrderStates.waiting_for_filling_choice_magic_2)
@@ -592,7 +586,7 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
                     media_group = [
                         InputMediaPhoto(media=FSInputFile("images/home_1.jpg")),
                         InputMediaPhoto(media=FSInputFile("images/home_2.jpg"),
-                                        caption="Какое наполнение вы желаете? (первый выбор)")
+                                        caption="Какой домик вы предпочитаете в вашем наборе?")
                     ]
                     sent_messages = await bot.send_media_group(
                         chat_id=callback.message.chat.id,
@@ -715,7 +709,7 @@ async def handle_order_info(message: Message, state: FSMContext):
 
     try:
         await bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_text)
-        await message.answer("Отлично! Ваши данные отправлены нашему помощнику. Ожидайте ответа. 🎅")
+        await message.answer("Отлично! Ваш заказ отправлен нашему помощнику. Скоро он с вами свяжется, чтобы уточнить детали! 🎅")
     except Exception as e:
         logger.error(f"Error sending admin message: {e}")
         await message.answer("Произошла ошибка при отправке ваших данных. Попробуйте позже.")
@@ -740,7 +734,7 @@ async def handle_user_question(message: Message, state: FSMContext):
 
     try:
         await bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_text)
-        await message.answer("Ваш вопрос отправлен нашему помощнику! Он свяжется с вами в ближайшее время.")
+        await message.answer("Ваш вопрос отправлен нашему помощнику! Он ответит вам в ближайшее время.")
     except Exception as e:
         logger.error(f"Error sending question to admin: {e}")
         await message.answer("Произошла ошибка при отправке вашего вопроса. Попробуйте позже.")
