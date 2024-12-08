@@ -7,7 +7,8 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
     CallbackQuery,
-    FSInputFile
+    FSInputFile,
+    InputMediaPhoto
 )
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.state import State, StatesGroup
@@ -290,16 +291,31 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             set_info = sets_data[data]
             await callback.message.delete()
             try:
-                photo_msg = await bot.send_photo(
+                # Отправляем изображение и описание вместе с кнопками через media group
+                media = [
+                    InputMediaPhoto(
+                        media=FSInputFile(set_info['image_path']),
+                        caption=set_info['description']
+                    )
+                ]
+                # Создаем альбом (media group)
+                media_group = [
+                    InputMediaPhoto(media=FSInputFile(set_info['image_path']), caption=set_info['description'])]
+                sent_messages = await bot.send_media_group(
                     chat_id=callback.message.chat.id,
-                    photo=FSInputFile(set_info['image_path']),
-                    caption=set_info['description'],
+                    media=media_group
+                )
+                # Сохраняем ID всех сообщений альбома
+                photo_ids = [msg.message_id for msg in sent_messages]
+                await state.update_data(photo_messages=photo_ids)
+                # Отправляем кнопки выбора вместе с последним сообщением альбома
+                await bot.send_message(
+                    chat_id=callback.message.chat.id,
+                    text="Выберите действие:",
                     reply_markup=set_detail_kb()
                 )
-                # Сохраняем ID отправленного фото-сообщения
-                await state.update_data(photo_messages=[photo_msg.message_id])
             except Exception as e:
-                logger.error(f"Error sending photos: {e}")
+                logger.error(f"Error sending set details: {e}")
                 await callback.message.answer("Произошла ошибка при отправке набора. Попробуйте позже.")
                 await state.clear()
 
@@ -326,51 +342,66 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             except Exception as e:
                 logger.warning(f"Failed to delete callback message: {e}")
 
-            # Отправляем нужные фото в зависимости от набора
+            # Отправляем нужные фото в зависимости от набора через media group
             photo_ids = []
             try:
                 if chosen_set_key == "set_1":
-                    # Маленькое чудо: 1 фотка example_1
-                    msg1 = await bot.send_photo(chat_id=callback.message.chat.id,
-                                                photo=FSInputFile("images/choice_tree.jpg"))
-                    photo_ids.append(msg1.message_id)
+                    # Маленькое чудо: 1 фотка example_1.jpg
+                    media_group = [
+                        InputMediaPhoto(
+                            media=FSInputFile("images/choice_tree.jpg"),
+                            caption="Какое наполнение вы желаете?"
+                        )
+                    ]
+                    sent_messages = await bot.send_media_group(
+                        chat_id=callback.message.chat.id,
+                        media=media_group
+                    )
+                    photo_ids = [msg.message_id for msg in sent_messages]
                     await state.update_data(photo_messages=photo_ids)
                     await bot.send_message(
                         chat_id=callback.message.chat.id,
-                        text="Какое наполнение вы желаете?",
+                        text="Выберите наполнение:",
                         reply_markup=little_choice_kb
                     )
-                    await state.set_state(OrderStates.waiting_for_filling_choice_little)
 
                 elif chosen_set_key == "set_2":
-                    # Тёплый снег: 2 фотки example_2 и example_3
-                    msg1 = await bot.send_photo(chat_id=callback.message.chat.id,
-                                                photo=FSInputFile("images/home_1.jpg"))
-                    msg2 = await bot.send_photo(chat_id=callback.message.chat.id,
-                                                photo=FSInputFile("images/home_2.jpg"))
-                    photo_ids.extend([msg1.message_id, msg2.message_id])
+                    # Тёплый снег: 2 фотки example_2.jpg и example_3.jpg
+                    media_group = [
+                        InputMediaPhoto(media=FSInputFile("images/home_1.jpg")),
+                        InputMediaPhoto(media=FSInputFile("images/home_2.jpg"),
+                                        caption="Какое наполнение вы желаете?")
+                    ]
+                    sent_messages = await bot.send_media_group(
+                        chat_id=callback.message.chat.id,
+                        media=media_group
+                    )
+                    photo_ids = [msg.message_id for msg in sent_messages]
                     await state.update_data(photo_messages=photo_ids)
                     await bot.send_message(
                         chat_id=callback.message.chat.id,
-                        text="Какое наполнение вы желаете?",
+                        text="Выберите наполнение:",
                         reply_markup=snow_choice_kb
                     )
-                    await state.set_state(OrderStates.waiting_for_filling_choice_snow)
 
                 elif chosen_set_key == "set_3":
-                    # Семейное волшебство: первый выбор - 2 фотки example_2 и example_3
-                    msg1 = await bot.send_photo(chat_id=callback.message.chat.id,
-                                                photo=FSInputFile("images/home_1.jpg"))
-                    msg2 = await bot.send_photo(chat_id=callback.message.chat.id,
-                                                photo=FSInputFile("images/home_2.jpg"))
-                    photo_ids.extend([msg1.message_id, msg2.message_id])
+                    # Семейное волшебство: первый выбор - 2 фотки example_2.jpg и example_3.jpg
+                    media_group = [
+                        InputMediaPhoto(media=FSInputFile("images/home_1.jpg")),
+                        InputMediaPhoto(media=FSInputFile("images/home_2.jpg"),
+                                        caption="Какое наполнение вы желаете? (первый выбор)")
+                    ]
+                    sent_messages = await bot.send_media_group(
+                        chat_id=callback.message.chat.id,
+                        media=media_group
+                    )
+                    photo_ids = [msg.message_id for msg in sent_messages]
                     await state.update_data(photo_messages=photo_ids)
                     await bot.send_message(
                         chat_id=callback.message.chat.id,
-                        text="Какое наполнение вы желаете? (первый выбор)",
+                        text="Выберите наполнение (первый выбор):",
                         reply_markup=magic_first_choice_kb
                     )
-                    await state.set_state(OrderStates.waiting_for_filling_choice_magic_1)
             except Exception as e:
                 logger.error(f"Error sending filling choice photos: {e}")
                 await callback.message.answer("Произошла ошибка при отправке выбора. Попробуйте позже.")
@@ -384,13 +415,25 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             if chosen_set:
                 set_info = sets_data[chosen_set]
                 try:
-                    msg = await bot.send_photo(
+                    media_group = [
+                        InputMediaPhoto(
+                            media=FSInputFile(set_info['image_path']),
+                            caption=set_info['description']
+                        )
+                    ]
+                    sent_messages = await bot.send_media_group(
                         chat_id=callback.message.chat.id,
-                        photo=FSInputFile(set_info['image_path']),
-                        caption=set_info['description'],
+                        media=media_group
+                    )
+                    # Сохраняем ID всех сообщений альбома
+                    photo_ids = [msg.message_id for msg in sent_messages]
+                    await state.update_data(photo_messages=photo_ids)
+                    # Отправляем кнопки выбора вместе с последним сообщением альбома
+                    await bot.send_message(
+                        chat_id=callback.message.chat.id,
+                        text="Выберите действие:",
                         reply_markup=set_detail_kb()
                     )
-                    await state.update_data(photo_messages=[msg.message_id])
                 except Exception as e:
                     logger.error(f"Error sending set details again: {e}")
                     await callback.message.answer("Произошла ошибка при отправке набора. Попробуйте позже.")
@@ -408,13 +451,25 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
                 chosen_set_key = user_data.get("chosen_set")
                 set_info = sets_data[chosen_set_key]
                 try:
-                    msg = await bot.send_photo(
+                    media_group = [
+                        InputMediaPhoto(
+                            media=FSInputFile(set_info['image_path']),
+                            caption=set_info['description']
+                        )
+                    ]
+                    sent_messages = await bot.send_media_group(
                         chat_id=callback.message.chat.id,
-                        photo=FSInputFile(set_info['image_path']),
-                        caption=set_info['description'],
+                        media=media_group
+                    )
+                    # Сохраняем ID всех сообщений альбома
+                    photo_ids = [msg.message_id for msg in sent_messages]
+                    await state.update_data(photo_messages=photo_ids)
+                    # Отправляем кнопки выбора вместе с последним сообщением альбома
+                    await bot.send_message(
+                        chat_id=callback.message.chat.id,
+                        text="Выберите действие:",
                         reply_markup=set_detail_kb()
                     )
-                    await state.update_data(photo_messages=[msg.message_id])
                 except Exception as e:
                     logger.error(f"Error sending set details on little_back: {e}")
                     await callback.message.answer("Произошла ошибка при отправке набора. Попробуйте позже.")
@@ -435,13 +490,25 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
                 chosen_set_key = user_data.get("chosen_set")
                 set_info = sets_data[chosen_set_key]
                 try:
-                    msg = await bot.send_photo(
+                    media_group = [
+                        InputMediaPhoto(
+                            media=FSInputFile(set_info['image_path']),
+                            caption=set_info['description']
+                        )
+                    ]
+                    sent_messages = await bot.send_media_group(
                         chat_id=callback.message.chat.id,
-                        photo=FSInputFile(set_info['image_path']),
-                        caption=set_info['description'],
+                        media=media_group
+                    )
+                    # Сохраняем ID всех сообщений альбома
+                    photo_ids = [msg.message_id for msg in sent_messages]
+                    await state.update_data(photo_messages=photo_ids)
+                    # Отправляем кнопки выбора вместе с последним сообщением альбома
+                    await bot.send_message(
+                        chat_id=callback.message.chat.id,
+                        text="Выберите действие:",
                         reply_markup=set_detail_kb()
                     )
-                    await state.update_data(photo_messages=[msg.message_id])
                 except Exception as e:
                     logger.error(f"Error sending set details on snow_back: {e}")
                     await callback.message.answer("Произошла ошибка при отправке набора. Попробуйте позже.")
@@ -462,13 +529,25 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
                 chosen_set_key = user_data.get("chosen_set")
                 set_info = sets_data[chosen_set_key]
                 try:
-                    msg = await bot.send_photo(
+                    media_group = [
+                        InputMediaPhoto(
+                            media=FSInputFile(set_info['image_path']),
+                            caption=set_info['description']
+                        )
+                    ]
+                    sent_messages = await bot.send_media_group(
                         chat_id=callback.message.chat.id,
-                        photo=FSInputFile(set_info['image_path']),
-                        caption=set_info['description'],
+                        media=media_group
+                    )
+                    # Сохраняем ID всех сообщений альбома
+                    photo_ids = [msg.message_id for msg in sent_messages]
+                    await state.update_data(photo_messages=photo_ids)
+                    # Отправляем кнопки выбора вместе с последним сообщением альбома
+                    await bot.send_message(
+                        chat_id=callback.message.chat.id,
+                        text="Выберите действие:",
                         reply_markup=set_detail_kb()
                     )
-                    await state.update_data(photo_messages=[msg.message_id])
                 except Exception as e:
                     logger.error(f"Error sending set details on magic1_back: {e}")
                     await callback.message.answer("Произошла ошибка при отправке набора. Попробуйте позже.")
@@ -477,16 +556,24 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
                 # Выбран вариант
                 magic_choice_1 = data.replace("magic1_", "")
                 await state.update_data(magic_choice_1=magic_choice_1)
-                # Теперь отправляем второй выбор
+                # Теперь отправляем второй выбор с фотографиями
                 try:
-                    msg1 = await bot.send_photo(chat_id=callback.message.chat.id,
-                                                photo=FSInputFile("images/choice_cookies.jpg"))
-                    msg2 = await bot.send_photo(chat_id=callback.message.chat.id,
-                                                photo=FSInputFile("images/choice_tree.jpg"))
-                    await state.update_data(photo_messages=[msg1.message_id, msg2.message_id])
+                    media_group = [
+                        InputMediaPhoto(media=FSInputFile("images/choice_cookies.jpg")),
+                        InputMediaPhoto(media=FSInputFile("images/choice_tree.jpg"),
+                                        caption="Какой второй вариант вы желаете?")
+                    ]
+                    sent_messages = await bot.send_media_group(
+                        chat_id=callback.message.chat.id,
+                        media=media_group
+                    )
+                    # Сохраняем ID всех сообщений альбома
+                    photo_ids = [msg.message_id for msg in sent_messages]
+                    await state.update_data(photo_messages=photo_ids)
+                    # Отправляем кнопки второго выбора
                     await bot.send_message(
                         chat_id=callback.message.chat.id,
-                        text="Какой второй вариант вы желаете?",
+                        text="Выберите второй вариант:",
                         reply_markup=magic_second_choice_kb
                     )
                     await state.set_state(OrderStates.waiting_for_filling_choice_magic_2)
@@ -502,14 +589,22 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             if data == "magic2_back":
                 # Вернуться к первому выбору
                 try:
-                    msg1 = await bot.send_photo(chat_id=callback.message.chat.id,
-                                                photo=FSInputFile("images/home_1.jpg"))
-                    msg2 = await bot.send_photo(chat_id=callback.message.chat.id,
-                                                photo=FSInputFile("images/home_2.jpg"))
-                    await state.update_data(photo_messages=[msg1.message_id, msg2.message_id])
+                    media_group = [
+                        InputMediaPhoto(media=FSInputFile("images/home_1.jpg")),
+                        InputMediaPhoto(media=FSInputFile("images/home_2.jpg"),
+                                        caption="Какое наполнение вы желаете? (первый выбор)")
+                    ]
+                    sent_messages = await bot.send_media_group(
+                        chat_id=callback.message.chat.id,
+                        media=media_group
+                    )
+                    # Сохраняем ID всех сообщений альбома
+                    photo_ids = [msg.message_id for msg in sent_messages]
+                    await state.update_data(photo_messages=photo_ids)
+                    # Отправляем кнопки первого выбора
                     await bot.send_message(
                         chat_id=callback.message.chat.id,
-                        text="Какое наполнение вы желаете? (первый выбор)",
+                        text="Выберите наполнение (первый выбор):",
                         reply_markup=magic_first_choice_kb
                     )
                     await state.set_state(OrderStates.waiting_for_filling_choice_magic_1)
@@ -554,6 +649,7 @@ async def send_booking_options(callback: CallbackQuery, state: FSMContext):
     set_info = sets_data.get(chosen_set_key, {"name": "Неизвестно", "price": "неизвестна"})
 
     try:
+        # Отправляем сообщение с вариантами бронирования
         await bot.send_message(
             chat_id=callback.message.chat.id,
             text=(
@@ -585,7 +681,6 @@ async def delete_photo_messages(state: FSMContext, callback: CallbackQuery):
             logger.warning(f"Failed to delete message {pmid}: {e}")
     # Очищаем список фото
     await state.update_data(photo_messages=[])
-
 
 
 @dp.message(OrderStates.waiting_for_order_info)
