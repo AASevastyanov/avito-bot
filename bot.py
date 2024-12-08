@@ -18,25 +18,16 @@ DEBUG = os.getenv('DEBUG', 'False')
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# ---------- Состояния ----------
 class OrderStates(StatesGroup):
     waiting_for_order_info = State()
-    # Этапы выбора для разных наборов
-    # Для "Маленькое чудо" (один выбор)
-    waiting_for_filling_choice_little = State()
-
-    # Для "Тёплый снег" (один выбор)
-    waiting_for_filling_choice_snow = State()
-
-    # Для "Семейное волшебство" (два выбора)
-    waiting_for_filling_choice_magic_1 = State()  # первый выбор
-    waiting_for_filling_choice_magic_2 = State()  # второй выбор
-
+    waiting_for_filling_choice_little = State()    # Маленькое чудо
+    waiting_for_filling_choice_snow = State()      # Тёплый снег
+    waiting_for_filling_choice_magic_1 = State()   # Семейное волшебство - первый выбор
+    waiting_for_filling_choice_magic_2 = State()   # Семейное волшебство - второй выбор
 
 class QuestionStates(StatesGroup):
     waiting_for_question = State()
 
-# ---------- Клавиатуры ----------
 town_answers = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(text='Да!', callback_data='main_menu')],
@@ -65,15 +56,19 @@ sets_menu_kb = InlineKeyboardMarkup(
 def set_detail_kb():
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Оформить заказ ✅", callback_data="order"),
-             InlineKeyboardButton(text="Назад", callback_data="back_to_sets")]
+            [
+                InlineKeyboardButton(text="Оформить заказ ✅", callback_data="order"),
+                InlineKeyboardButton(text="Назад", callback_data="back_to_sets")
+            ]
         ]
     )
 
 order_confirm_kb = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text="Да!", callback_data="order_yes"),
-         InlineKeyboardButton(text="Я подумаю", callback_data="order_think_again")]
+        [
+            InlineKeyboardButton(text="Да!", callback_data="order_yes"),
+            InlineKeyboardButton(text="Я подумаю", callback_data="order_think_again")
+        ]
     ]
 )
 
@@ -105,8 +100,7 @@ def action_back_kb():
         ]
     )
 
-# Клавиатуры для выбора наполнения
-# Маленькое чудо
+# Клавиатуры для выбора
 little_choice_kb = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(text="Елочка 🌲", callback_data="little_елочка")],
@@ -115,7 +109,6 @@ little_choice_kb = InlineKeyboardMarkup(
     ]
 )
 
-# Тёплый снег
 snow_choice_kb = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(text="Example1", callback_data="snow_ex1")],
@@ -124,7 +117,6 @@ snow_choice_kb = InlineKeyboardMarkup(
     ]
 )
 
-# Семейное волшебство - первый выбор
 magic_first_choice_kb = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(text="Example1", callback_data="magic1_ex1")],
@@ -133,7 +125,6 @@ magic_first_choice_kb = InlineKeyboardMarkup(
     ]
 )
 
-# Семейное волшебство - второй выбор
 magic_second_choice_kb = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(text="Example1", callback_data="magic2_ex1")],
@@ -143,7 +134,6 @@ magic_second_choice_kb = InlineKeyboardMarkup(
     ]
 )
 
-# ---------- Данные о наборах ----------
 sets_data = {
     "set_1": {
         "name": "Маленькое чудо",
@@ -188,7 +178,6 @@ sets_data = {
         "image_path": "images/set_3.jpg"
     }
 }
-
 
 @dp.message(Command("start"))
 async def start_command(message: Message):
@@ -272,15 +261,17 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
         await state.update_data(chosen_set=data)
         set_info = sets_data[data]
         await callback.message.delete()
-        photo = FSInputFile(set_info['image_path'])
-        await bot.send_photo(
+        photo_msg = await bot.send_photo(
             chat_id=callback.message.chat.id,
-            photo=photo,
+            photo=FSInputFile(set_info['image_path']),
             caption=set_info['description'],
             reply_markup=set_detail_kb()
         )
+        # Сохраним id основного сообщения с набором
+        await state.update_data(photo_messages=[photo_msg.message_id])
 
     elif data == "back_to_sets":
+        await delete_photo_messages(state, callback)
         await callback.message.delete()
         await bot.send_message(
             chat_id=callback.message.chat.id,
@@ -294,20 +285,18 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
         if not chosen_set_key:
             await callback.message.answer("Произошла ошибка, попробуйте ещё раз.")
             return
-
+        # Удаляем текущее фото и сообщение
+        await delete_photo_messages(state, callback)
         await callback.message.delete()
-        # Показываем две картинки
-        await bot.send_photo(
-            chat_id=callback.message.chat.id,
-            photo=FSInputFile("images/1.jpg")  # Замените путь
-        )
-        await bot.send_photo(
-            chat_id=callback.message.chat.id,
-            photo=FSInputFile("images/2.jpg")  # Замените путь
-        )
+
+        # Отправляем нужные фото в зависимости от набора
+        photo_ids = []
 
         if chosen_set_key == "set_1":
-            # Маленькое чудо (один выбор)
+            # Маленькое чудо: 1 фотка example_1
+            msg1 = await bot.send_photo(chat_id=callback.message.chat.id, photo=FSInputFile("images/choice_tree.jpg"))
+            photo_ids.append(msg1.message_id)
+            await state.update_data(photo_messages=photo_ids)
             await bot.send_message(
                 chat_id=callback.message.chat.id,
                 text="Какое наполнение вы желаете?",
@@ -316,7 +305,11 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             await state.set_state(OrderStates.waiting_for_filling_choice_little)
 
         elif chosen_set_key == "set_2":
-            # Тёплый снег (один выбор)
+            # Тёплый снег: 2 фотки example_2 и example_3
+            msg1 = await bot.send_photo(chat_id=callback.message.chat.id, photo=FSInputFile("images/home_1.jpg"))
+            msg2 = await bot.send_photo(chat_id=callback.message.chat.id, photo=FSInputFile("images/home_2.jpg"))
+            photo_ids.extend([msg1.message_id, msg2.message_id])
+            await state.update_data(photo_messages=photo_ids)
             await bot.send_message(
                 chat_id=callback.message.chat.id,
                 text="Какое наполнение вы желаете?",
@@ -325,7 +318,11 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             await state.set_state(OrderStates.waiting_for_filling_choice_snow)
 
         elif chosen_set_key == "set_3":
-            # Семейное волшебство (два этапа выбора)
+            # Семейное волшебство: первый выбор - example_2 и example_3
+            msg1 = await bot.send_photo(chat_id=callback.message.chat.id, photo=FSInputFile("images/home_1.jpg"))
+            msg2 = await bot.send_photo(chat_id=callback.message.chat.id, photo=FSInputFile("images/home_2.jpg"))
+            photo_ids.extend([msg1.message_id, msg2.message_id])
+            await state.update_data(photo_messages=photo_ids)
             await bot.send_message(
                 chat_id=callback.message.chat.id,
                 text="Какое наполнение вы желаете? (первый выбор)",
@@ -334,97 +331,87 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             await state.set_state(OrderStates.waiting_for_filling_choice_magic_1)
 
     elif data == "order_think_again":
+        await delete_photo_messages(state, callback)
+        await callback.message.delete()
         user_data = await state.get_data()
         chosen_set = user_data.get("chosen_set", None)
         if chosen_set:
             set_info = sets_data[chosen_set]
-            await callback.message.delete()
-            photo = FSInputFile(set_info['image_path'])
-            await bot.send_photo(
+            msg = await bot.send_photo(
                 chat_id=callback.message.chat.id,
-                photo=photo,
+                photo=FSInputFile(set_info['image_path']),
                 caption=set_info['description'],
                 reply_markup=set_detail_kb()
             )
+            await state.update_data(photo_messages=[msg.message_id])
         else:
             await callback.message.answer("Произошла ошибка, попробуйте ещё раз.")
 
-
-    # Обработка выбора для "Маленькое чудо"
+    # Обработка для "Маленькое чудо"
     elif data in ["little_елочка", "little_шарик", "little_back"]:
+        await delete_photo_messages(state, callback)
+        await callback.message.delete()
         if data == "little_back":
-            # Возврат к выбору набора
-            await state.update_data(filling=None)
-            await callback.message.delete()
-            # Показываем снова описание набора
+            # Назад к описанию набора
             user_data = await state.get_data()
             chosen_set_key = user_data.get("chosen_set")
             set_info = sets_data[chosen_set_key]
-            photo = FSInputFile(set_info['image_path'])
-            await bot.send_photo(
+            msg = await bot.send_photo(
                 chat_id=callback.message.chat.id,
-                photo=photo,
+                photo=FSInputFile(set_info['image_path']),
                 caption=set_info['description'],
                 reply_markup=set_detail_kb()
             )
+            await state.update_data(photo_messages=[msg.message_id])
             await state.clear_state(OrderStates.waiting_for_filling_choice_little)
         else:
-            # Выбран один из вариантов
+            # Выбран вариант
             await state.update_data(filling=data.replace("little_", ""))
-
             await send_booking_options(callback, state)
 
-    # Обработка выбора для "Тёплый снег"
+    # Обработка для "Тёплый снег"
     elif data in ["snow_ex1", "snow_ex2", "snow_back"]:
+        await delete_photo_messages(state, callback)
+        await callback.message.delete()
         if data == "snow_back":
-            # Возврат к выбору набора
-            await state.update_data(snow_choice=None)
-            await callback.message.delete()
             user_data = await state.get_data()
             chosen_set_key = user_data.get("chosen_set")
             set_info = sets_data[chosen_set_key]
-            photo = FSInputFile(set_info['image_path'])
-            await bot.send_photo(
+            msg = await bot.send_photo(
                 chat_id=callback.message.chat.id,
-                photo=photo,
+                photo=FSInputFile(set_info['image_path']),
                 caption=set_info['description'],
                 reply_markup=set_detail_kb()
             )
+            await state.update_data(photo_messages=[msg.message_id])
             await state.clear_state(OrderStates.waiting_for_filling_choice_snow)
         else:
             await state.update_data(snow_choice=data.replace("snow_", ""))
             await send_booking_options(callback, state)
 
-    # Обработка выбора для "Семейное волшебство" - первый выбор
+    # Семейное волшебство - первый выбор
     elif data in ["magic1_ex1", "magic1_ex2", "magic1_back"]:
+        await delete_photo_messages(state, callback)
+        await callback.message.delete()
         if data == "magic1_back":
-            # Назад к описанию набора
-            await state.update_data(magic_choice_1=None)
-            await callback.message.delete()
             user_data = await state.get_data()
             chosen_set_key = user_data.get("chosen_set")
             set_info = sets_data[chosen_set_key]
-            photo = FSInputFile(set_info['image_path'])
-            await bot.send_photo(
+            msg = await bot.send_photo(
                 chat_id=callback.message.chat.id,
-                photo=photo,
+                photo=FSInputFile(set_info['image_path']),
                 caption=set_info['description'],
                 reply_markup=set_detail_kb()
             )
+            await state.update_data(photo_messages=[msg.message_id])
             await state.clear_state(OrderStates.waiting_for_filling_choice_magic_1)
         else:
             await state.update_data(magic_choice_1=data.replace("magic1_", ""))
-            # Переход ко второму этапу выбора
-            await callback.message.delete()
-            # Снова показываем две картинки
-            await bot.send_photo(
-                chat_id=callback.message.chat.id,
-                photo=FSInputFile("images/3.jpg")  # Замените путь
-            )
-            await bot.send_photo(
-                chat_id=callback.message.chat.id,
-                photo=FSInputFile("images/4.jpg")  # Замените путь
-            )
+            # Теперь второй выбор: перед ним тоже нужно показать 2 фотки (example_4 и example_1)
+            # Отправим новые фото
+            msg1 = await bot.send_photo(chat_id=callback.message.chat.id, photo=FSInputFile("images/choice_cookies.jpg"))
+            msg2 = await bot.send_photo(chat_id=callback.message.chat.id, photo=FSInputFile("images/choice_tree.jpg"))
+            await state.update_data(photo_messages=[msg1.message_id, msg2.message_id])
             await bot.send_message(
                 chat_id=callback.message.chat.id,
                 text="Какой второй вариант вы желаете?",
@@ -432,19 +419,16 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
             )
             await state.set_state(OrderStates.waiting_for_filling_choice_magic_2)
 
-    # Обработка выбора для "Семейное волшебство" - второй выбор
+    # Семейное волшебство - второй выбор
     elif data in ["magic2_ex1", "magic2_ex2", "magic2_ex3", "magic2_back"]:
+        await delete_photo_messages(state, callback)
+        await callback.message.delete()
         if data == "magic2_back":
-            # Назад к первому выбору
-            await callback.message.delete()
-            await bot.send_photo(
-                chat_id=callback.message.chat.id,
-                photo=FSInputFile("images/5.jpg")
-            )
-            await bot.send_photo(
-                chat_id=callback.message.chat.id,
-                photo=FSInputFile("images/3.jpg")
-            )
+            # Вернуться к первому выбору
+            # Снова отправим example_2 и example_3
+            msg1 = await bot.send_photo(chat_id=callback.message.chat.id, photo=FSInputFile("images/home_1.jpg"))
+            msg2 = await bot.send_photo(chat_id=callback.message.chat.id, photo=FSInputFile("images/home_2.jpg"))
+            await state.update_data(photo_messages=[msg1.message_id, msg2.message_id])
             await bot.send_message(
                 chat_id=callback.message.chat.id,
                 text="Какое наполнение вы желаете? (первый выбор)",
@@ -461,9 +445,8 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
         if chosen_set_key is None:
             await callback.message.answer("Произошла ошибка, попробуйте ещё раз.")
             return
-        set_info = sets_data[chosen_set_key]
-
         await callback.message.delete()
+        set_info = sets_data[chosen_set_key]
         await bot.send_message(
             chat_id=callback.message.chat.id,
             text=(
@@ -475,15 +458,14 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
         )
         await state.set_state(OrderStates.waiting_for_order_info)
 
-
 async def send_booking_options(callback: CallbackQuery, state: FSMContext):
-    # После завершения выбора для любого набора переходим к стандартным условиям заказа
+    await delete_photo_messages(state, callback)
+    await callback.message.delete()
     user_data = await state.get_data()
     chosen_set_key = user_data.get("chosen_set")
     set_info = sets_data[chosen_set_key]
 
-    await callback.message.delete()
-    await bot.send_message(
+    msg = await bot.send_message(
         chat_id=callback.message.chat.id,
         text=(
             "Отлично! Уже можно чувствовать нотки Нового года в воздухе🎄!\n\n"
@@ -495,6 +477,18 @@ async def send_booking_options(callback: CallbackQuery, state: FSMContext):
         ),
         reply_markup=order_confirm_kb
     )
+    # Здесь больше фото не отправляем, значит messages_photo пусты
+
+async def delete_photo_messages(state: FSMContext, callback: CallbackQuery):
+    user_data = await state.get_data()
+    photo_messages = user_data.get("photo_messages", [])
+    for pmid in photo_messages:
+        try:
+            await bot.delete_message(chat_id=callback.message.chat.id, message_id=pmid)
+        except:
+            pass
+    # Очищаем список фото
+    await state.update_data(photo_messages=[])
 
 @dp.message(OrderStates.waiting_for_order_info)
 async def handle_order_info(message: Message, state: FSMContext):
@@ -502,7 +496,6 @@ async def handle_order_info(message: Message, state: FSMContext):
     chosen_set_key = user_data.get("chosen_set", "неизвестный набор")
     chosen_set = sets_data.get(chosen_set_key, {"name": "Неизвестно", "price": "неизвестна"})
 
-    # Собираем все выборы
     filling_info = ""
     if chosen_set_key == "set_1":
         filling_info = user_data.get("filling", "не выбрано")
@@ -530,7 +523,6 @@ async def handle_order_info(message: Message, state: FSMContext):
     await message.answer("Отлично! Ваши данные отправлены нашему помощнику. Ожидайте ответа. 🎅")
     await state.clear()
 
-
 @dp.message(QuestionStates.waiting_for_question)
 async def handle_user_question(message: Message, state: FSMContext):
     question_text = message.text
@@ -553,7 +545,7 @@ async def handle_user_question(message: Message, state: FSMContext):
 @dp.message(Command("answer"))
 async def admin_answer(message: Message, command: CommandObject):
     if str(message.from_user.id) != str(ADMIN_CHAT_ID):
-        return  # Только админ может использовать эту команду
+        return
 
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
@@ -572,7 +564,6 @@ async def admin_answer(message: Message, command: CommandObject):
     await bot.send_message(chat_id=user_id_int, text=f"Ответ от помощника:\n\n{answer_text}")
     await message.answer("Ответ отправлен пользователю.")
 
-# ----------- Заглушки для Render -----------
 async def handle(request):
     return web.Response(text="Бот работает!")
 
