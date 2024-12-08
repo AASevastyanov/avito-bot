@@ -321,7 +321,10 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
 
             # Удаляем текущие фото и сообщение
             await delete_photo_messages(state, callback)
-            await callback.message.delete()
+            try:
+                await callback.message.delete()
+            except Exception as e:
+                logger.warning(f"Failed to delete callback message: {e}")
 
             # Отправляем нужные фото в зависимости от набора
             photo_ids = []
@@ -570,6 +573,9 @@ async def send_booking_options(callback: CallbackQuery, state: FSMContext):
 
 
 async def delete_photo_messages(state: FSMContext, callback: CallbackQuery):
+    """
+    Удаляет сообщения с фото, если они существуют.
+    """
     user_data = await state.get_data()
     photo_messages = user_data.get("photo_messages", [])
     for pmid in photo_messages:
@@ -579,6 +585,7 @@ async def delete_photo_messages(state: FSMContext, callback: CallbackQuery):
             logger.warning(f"Failed to delete message {pmid}: {e}")
     # Очищаем список фото
     await state.update_data(photo_messages=[])
+
 
 
 @dp.message(OrderStates.waiting_for_order_info)
