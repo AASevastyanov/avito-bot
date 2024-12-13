@@ -558,7 +558,7 @@ async def handle_callbacks(callback: CallbackQuery, state: FSMContext):
                     media_group = [
                         InputMediaPhoto(media=FSInputFile("images/choice_cookies.jpg")),
                         InputMediaPhoto(media=FSInputFile("images/choice_tree.jpg"),
-                                        caption="Какую печеньку вы предпочитаете видеть в своем наборе?")
+                                        caption="В наборе 1 имбирный человечек, + на ваш выбор:")
                     ]
                     sent_messages = await bot.send_media_group(
                         chat_id=callback.message.chat.id,
