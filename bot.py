@@ -212,7 +212,7 @@ sets_data = {
 @dp.message(Command("start"))
 async def start_command(message: Message):
     photo_file = FSInputFile("images/start_img.jpg")  # путь к твоему example.png
-    await message.answer_photo(
+    await message.answer(
         photo=photo_file,
         caption=(
             "🎄 Приветствую! Здесь вы можете:\n"
