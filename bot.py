@@ -42,6 +42,9 @@ class OrderStates(StatesGroup):
 class QuestionStates(StatesGroup):
     waiting_for_question = State()
 
+class AdminAnswerStates(StatesGroup):
+    waiting_for_user_id_message = State()  # Когда админ ввёл /answer user_id
+    waiting_for_content = State()
 
 # ---------- Клавиатуры ----------
 town_answers = InlineKeyboardMarkup(
@@ -745,32 +748,78 @@ async def handle_user_question(message: Message, state: FSMContext):
     await state.clear()
 
 
+class AdminAnswerStates(StatesGroup):
+    waiting_for_user_id = State()      # ждём, когда админ введёт /answer USER_ID
+    waiting_for_content = State()
 @dp.message(Command("answer"))
-async def admin_answer(message: Message, command: CommandObject):
+async def admin_answer_command(message: Message, command: CommandObject, state: FSMContext):
+    """
+    Шаг 1: /answer USER_ID
+    Бот проверяет, что команду ввёл админ, парсит user_id.
+    Переходит в состояние waiting_for_content.
+    """
+    # Проверяем, что команду ввёл именно админ
     if str(message.from_user.id) != str(ADMIN_CHAT_ID):
-        return  # Только админ может использовать эту команду
+        return  # Игнорируем, если это не админ
 
-    args = message.text.split(maxsplit=2)
-    if len(args) < 3:
-        await message.answer("Неверный формат команды. Используйте /answer USER_ID Текст ответа")
+    args = message.text.split()
+    if len(args) < 2:
+        await message.answer("Используйте: /answer <user_id>")
         return
 
-    user_id = args[1]
-    answer_text = args[2]
-
     try:
-        user_id_int = int(user_id)
+        user_id = int(args[1])
     except ValueError:
-        await message.answer("User ID должен быть числом.")
+        await message.answer("User ID должен быть числом. Пример: /answer 123456789")
         return
 
-    try:
-        await bot.send_message(chat_id=user_id_int, text=f"Ответ от помощника:\n\n{answer_text}")
-        await message.answer("Ответ отправлен пользователю.")
-    except Exception as e:
-        logger.error(f"Error sending answer to user {user_id_int}: {e}")
-        await message.answer("Произошла ошибка при отправке ответа. Попробуйте позже.")
+    # Сохраняем user_id в FSM
+    await state.update_data(answer_user_id=user_id)
+    await state.set_state(AdminAnswerStates.waiting_for_content)
+    await message.answer(f"Отправьте фото или текст, которые вы хотите переслать пользователю с ID {user_id}.")
 
+
+@dp.message(AdminAnswerStates.waiting_for_content, content_types=[ContentType.TEXT, ContentType.PHOTO])
+async def admin_sending_answer(message: Message, state: FSMContext):
+    """
+    Шаг 2: После /answer USER_ID админ отправляет либо фото, либо текст.
+    Мы пересылаем это указанному пользователю.
+    """
+    data = await state.get_data()
+    user_id = data.get("answer_user_id", None)
+
+    if user_id is None:
+        await message.answer("Произошла ошибка, user_id не найден. Попробуйте заново.")
+        await state.clear()
+        return
+
+    # Если есть фото
+    if message.photo:
+        # Возьмём последнее (самое большое) фото
+        photo = message.photo[-1].file_id
+        caption = message.caption or ""  # Подпись к фото
+        # Пересылаем фото пользователю
+        try:
+            await bot.send_photo(chat_id=user_id, photo=photo, caption=caption)
+            await message.answer("Ответ (фото) отправлен пользователю.")
+        except Exception as e:
+            logger.error(f"Error sending photo to user {user_id}: {e}")
+            await message.answer("Произошла ошибка при отправке фото пользователю.")
+    else:
+        # Иначе, если нет фото — пересылаем текст
+        if message.text:
+            try:
+                await bot.send_message(chat_id=user_id, text=message.text)
+                await message.answer("Ответ (текст) отправлен пользователю.")
+            except Exception as e:
+                logger.error(f"Error sending text to user {user_id}: {e}")
+                await message.answer("Произошла ошибка при отправке сообщения пользователю.")
+        else:
+            await message.answer("Вы ничего не отправили (нет фото, нет текста). Попробуйте снова.")
+            return
+
+    # После отправки ответа очищаем состояние
+    await state.clear()
 
 # ----------- Заглушки для Render -----------
 async def handle(request):
