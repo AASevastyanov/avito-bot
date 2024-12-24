@@ -8,7 +8,8 @@ from aiogram.types import (
     InlineKeyboardButton,
     CallbackQuery,
     FSInputFile,
-    InputMediaPhoto
+    InputMediaPhoto,
+    ContentType
 )
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.state import State, StatesGroup
