@@ -11,7 +11,7 @@ from aiogram.types import (
     InputMediaPhoto,
     ContentType
 )
-from aiogram.filters import Command, CommandObject
+from aiogram.filters import Command, CommandObject, ContentTypeFilter
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
